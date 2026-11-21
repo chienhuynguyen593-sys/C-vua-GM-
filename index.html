@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Chess Arena · Stockfish 1-18 & Multi-Mode</title>
+<link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+<style>
+  :root {
+    --bg: #161512;
+    --panel: #262421;
+    --panel-2: #302e2a;
+    --panel-3: #3b3833;
+    --line: #45413b;
+    --txt: #f5f5f4;
+    --mut: #a8a29e;
+    --green: #81b64c;
+    --green-dark: #5d8c2f;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --blue: #38bdf8;
+    --sq-light: #f0d9b5;
+    --sq-dark: #b58863;
+  }
+
+  * {
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--txt);
+    min-height: 100vh;
+  }
+
+  body {
+    padding: 12px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 1180px;
+    display: grid;
+    grid-template-columns: minmax(320px, 560px) 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  .card:last-child {
+    margin-bottom: 0;
+  }
+
+  .top-brand {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .brand-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-badge {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, var(--green), var(--green-dark));
+    display: grid;
+    place-items: center;
+    font-size: 19px;
+    color: #fff;
+    font-weight: 800;
+    box-shadow: 0 3px 10px rgba(129, 182, 76, 0.35);
+  }
+
+  .brand-title h1 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+
+  .brand-sub {
+    font-size: 11.5px;
+    color: var(--mut);
+  }
+
+  .engine-pill {
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: #bef264;
+    white-space: nowrap;
+  }
+
+  .section-label {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--mut);
+    margin-bottom: 6px;
+  }
+
+  .mode-tabs {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .mode-tab {
+    background: var(--panel-2);
+    color: var(--txt);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 8px 5px;
+    font-size: 11.5px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    line-height: 1.25;
+    transition: all 0.15s ease;
+  }
+
+  .mode-tab small {
+    display: block;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--mut);
+    margin-top: 2px;
+  }
+
+  .mode-tab:hover {
+    background: var(--panel-3);
+    border-color: #5c574f;
+  }
+
+  .mode-tab.active {
+    background: var(--green);
+    color: #132006;
+    border-color: var(--green);
+  }
+
+  .mode-tab.active small {
+    color: #1b2e08;
+    font-weight: 700;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 7px;
+  }
+
+  label {
+    display: block;
+    font-size: 11px;
+    color: var(--mut);
+    margin-bottom: 4px;
+  }
+
+  select, input[type="number"], input[type="text"], button {
+    width: 100%;
+    background: var(--panel-2);
+    color: var(--txt);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 9px;
+    font-size: 12.5px;
+    outline: none;
+  }
+
+  select:focus, input:focus {
+    border-color: var(--green);
+  }
+
+  button {
+    background: var(--green);
+    color: #121e06;
+    border: none;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.08s ease, filter 0.15s ease;
+  }
+
+  button:hover {
+    filter: brightness(1.06);
+  }
+
+  button:active {
+    transform: scale(0.98);
+  }
+
+  button.sec {
+    background: var(--panel-2);
+    color: var(--txt);
+    border: 1px solid var(--line);
+  }
+
+  button.sec:hover {
+    background: var(--panel-3);
+  }
+
+  button.bad {
+    background: rgba(239, 68, 68, 0.16);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.45);
+  }
+
+  .mode-box {
+    background: #1d1b18;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 9px 10px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #e7e5e4;
+  }
+
+  .board-stage {
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    gap: 8px;
+    align-items: stretch;
+    margin: 8px 0;
+  }
+
+  .eval-bar {
+    position: relative;
+    width: 24px;
+    min-height: 300px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: #22201d;
+    user-select: none;
+  }
+
+  .eval-bar-white {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 50%;
+    background: #f5f5f4;
+    transition: height 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .eval-bar-label {
+    position: absolute;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 9.5px;
+    font-weight: 800;
+    font-family: monospace;
+    z-index: 2;
+    pointer-events: none;
+    padding: 2px 0;
+  }
+
+  .eval-bar-label.top {
+    top: 2px;
+    color: #f5f5f4;
+    text-shadow: 0 1px 2px #000;
+  }
+
+  .eval-bar-label.bot {
+    bottom: 2px;
+    color: #1c1917;
+    text-shadow: 0 1px 1px #fff;
+  }
+
+  .board-frame {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid #3c3832;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+    background: var(--sq-dark);
+  }
+
+  #board2d {
+    width: 100%;
+    touch-action: none;
+  }
+
+  .theme-wood #board2d .white-1e1d7 { background-color: #f0d9b5; color: #b58863; }
+  .theme-wood #board2d .black-3c85d { background-color: #b58863; color: #f0d9b5; }
+
+  .theme-green #board2d .white-1e1d7 { background-color: #eeeed2; color: #769656; }
+  .theme-green #board2d .black-3c85d { background-color: #769656; color: #eeeed2; }
+
+  .theme-slate #board2d .white-1e1d7 { background-color: #dee3e6; color: #8ca2ad; }
+  .theme-slate #board2d .black-3c85d { background-color: #8ca2ad; color: #dee3e6; }
+
+  .sq-highlight-move {
+    box-shadow: inset 0 0 0 3px rgba(250, 204, 21, 0.85) !important;
+    background-color: rgba(250, 204, 21, 0.32) !important;
+  }
+
+  .sq-last-move {
+    background-color: rgba(163, 230, 53, 0.36) !important;
+  }
+
+  .sq-in-check {
+    background: radial-gradient(circle, rgba(239, 68, 68, 0.92) 0%, rgba(239, 68, 68, 0.35) 70%, transparent 100%) !important;
+  }
+
+  .board4-grid {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    display: grid;
+    grid-template-columns: repeat(14, 1fr);
+    grid-template-rows: repeat(14, 1fr);
+    background: #171614;
+  }
+
+  .sq4 {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    display: grid;
+    place-items: center;
+    font-size: clamp(12px, 2.8vw, 23px);
+    line-height: 1;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .sq4.void { background: #171614; cursor: default; }
+  .sq4.light { background: var(--sq-light); }
+  .sq4.dark { background: var(--sq-dark); }
+  .sq4.sel4 {
+    outline: 2px solid #facc15;
+    outline-offset: -2px;
+    background: #fde047 !important;
+  }
+  .sq4.hint4::after {
+    content: "";
+    width: 30%;
+    height: 30%;
+    border-radius: 50%;
+    background: rgba(20, 83, 45, 0.55);
+  }
+  .sq4.last4 {
+    background: rgba(163, 230, 53, 0.42) !important;
+  }
+
+  .p4-w { color: #ffffff; text-shadow: 0 0 2px #000, 0 1px 2px #000; }
+  .p4-b { color: #1c1917; text-shadow: 0 0 1px rgba(255,255,255,0.65); }
+  .p4-r { color: #ef4444; text-shadow: 0 0 2px #000; }
+  .p4-g { color: #22c55e; text-shadow: 0 0 2px #000; }
+
+  .player-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 11px;
+  }
+
+  .player-meta { min-width: 0; }
+
+  .player-name {
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .player-sub {
+    font-size: 11px;
+    color: var(--mut);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .captured-row {
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: #e7e5e4;
+    min-height: 16px;
+    margin-top: 2px;
+  }
+
+  .clock-wrap { text-align: right; flex-shrink: 0; }
+
+  .clock-box {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 18px;
+    font-weight: 800;
+    background: #141311;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 5px 10px;
+    min-width: 84px;
+    text-align: center;
+    color: #e7e5e4;
+  }
+
+  .clock-box.active {
+    background: var(--green);
+    color: #111d05;
+    border-color: var(--green);
+    box-shadow: 0 0 14px rgba(129, 182, 76, 0.35);
+  }
+
+  .clock-box.low {
+    background: #7f1d1d;
+    color: #fecaca;
+    border-color: #ef4444;
+  }
+
+  .clock-info {
+    font-size: 10.5px;
+    color: var(--blue);
+    font-family: monospace;
+    margin-top: 2px;
+  }
+
+  .roast-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    background: #1d2417;
+    border: 1px solid rgba(129, 182, 76, 0.35);
+    border-left: 4px solid var(--green);
+    border-radius: 10px;
+    padding: 9px 11px;
+    margin-top: 10px;
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: #ecfccb;
+  }
+
+  .status-banner {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    font-size: 12.5px;
+    font-weight: 700;
+    text-align: center;
+    color: #f5f5f4;
+  }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .card-header h2 {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 800;
+  }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .metric-box {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 8px 10px;
+  }
+
+  .metric-label {
+    font-size: 11px;
+    color: var(--mut);
+    margin-bottom: 3px;
+  }
+
+  .metric-val {
+    font-size: 13.5px;
+    font-weight: 800;
+    font-family: monospace;
+    color: #a3e635;
+  }
+
+  .badge-pill {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .q-best { background: rgba(74, 222, 128, 0.16); color: #4ade80; }
+  .q-good { background: rgba(163, 230, 53, 0.16); color: #bef264; }
+  .q-book { background: rgba(56, 189, 248, 0.16); color: #38bdf8; }
+  .q-inacc { background: rgba(250, 204, 21, 0.16); color: #facc15; }
+  .q-mistake { background: rgba(251, 146, 60, 0.18); color: #fb923c; }
+  .q-blunder { background: rgba(248, 113, 113, 0.2); color: #f87171; }
+
+  .pv-box {
+    background: #181715;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #e7e5e4;
+    word-break: break-word;
+  }
+
+  .move-list {
+    background: #181715;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 8px;
+    max-height: 290px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 12px;
+  }
+
+  .move-item {
+    display: grid;
+    grid-template-columns: 34px 1fr 1fr auto;
+    gap: 6px;
+    align-items: center;
+    padding: 5px 6px;
+    border-bottom: 1px solid #262421;
+  }
+
+  .move-item:last-child { border-bottom: none; }
+  .move-num { color: var(--mut); font-weight: 700; }
+  .move-san { font-weight: 700; color: #f5f5f4; }
+  .move-eval { font-size: 11px; color: var(--mut); text-align: right; }
+
+  .mini-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .mini-btn { width: auto; padding: 5px 10px; font-size: 11.5px; border-radius: 7px; }
+
+  .multi-note {
+    font-size: 11.5px;
+    color: var(--mut);
+    margin-top: 8px;
+    line-height: 1.4;
+  }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; max-width: 560px; }
+    .mode-tabs { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  @media (max-width: 440px) {
+    .mode-tabs { grid-template-columns: repeat(2, 1fr); }
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body class="theme-wood">
+<div class="app">
+  <div>
+    <div class="card">
+      <div class="top-brand">
+        <div class="brand-title">
+          <div class="brand-badge">♛</div>
+          <div>
+            <h1>Chess Arena · Stockfish 1–18</h1>
+            <div class="brand-sub">Đa chế độ · Đánh giá thế trận · Cà khịa</div>
+          </div>
+        </div>
+        <div class="engine-pill" id="engineStatus">Đang khởi tạo AI...</div>
+      </div>
+
+      <span class="section-label">Chọn chế độ chơi</span>
+      <div class="mode-tabs" id="modeTabs">
+        <button type="button" class="mode-tab active" data-mode="standard" onclick="setMode('standard')">
+          Tiêu chuẩn<small>SF 1–18</small>
+        </button>
+        <button type="button" class="mode-tab" data-mode="chess960" onclick="setMode('chess960')">
+          Chess960<small>960 thế cờ</small>
+        </button>
+        <button type="button" class="mode-tab" data-mode="handicap" onclick="setMode('handicap')">
+          Chấp quân<small>Tùy chọn</small>
+        </button>
+        <button type="button" class="mode-tab" data-mode="four" onclick="setMode('four')">
+          Cờ 4 phe<small>14×14</small>
+        </button>
+        <button type="button" class="mode-tab" data-mode="team" onclick="setMode('team')">
+          Đồng đội 2v2<small>Phối hợp</small>
+        </button>
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <label for="sfLevel">Cấp độ Stockfish (1–18)</label>
+          <select id="sfLevel" onchange="applyEngineLevel()"></select>
+        </div>
+        <div>
+          <label for="sideSelect">Phe của bạn</label>
+          <select id="sideSelect" onchange="newGame()">
+            <option value="w" selected>Trắng (Đi trước)</option>
+            <option value="b">Đen (Máy đi trước)</option>
+            <option value="r">Ngẫu nhiên</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div>
+          <label for="timePreset">Thời gian (Bonus / Delay)</label>
+          <select id="timePreset" onchange="onTimePresetChange()">
+            <option value="180|2|bonus">3+2 (Bonus 2s)</option>
+            <option value="300|2|bonus">5+2 (Bonus 2s)</option>
+            <option value="600|5|bonus" selected>10+5 (Bonus 5s)</option>
+            <option value="900|10|bonus">15+10 (Bonus 10s)</option>
+            <option value="300|3|delay">5 phút · Delay 3s</option>
+            <option value="600|5|delay">10 phút · Delay 5s</option>
+            <option value="custom|0|bonus">Tùy chỉnh...</option>
+          </select>
+        </div>
+        <div>
+          <label for="boardTheme">Màu bàn cờ</label>
+          <select id="boardTheme" onchange="applyBoardTheme()">
+            <option value="theme-wood" selected>Gỗ cổ điển</option>
+            <option value="theme-green">Xanh giải đấu</option>
+            <option value="theme-slate">Xám hiện đại</option>
+          </select>
+        </div>
+        <div>
+          <label for="roastMode">Tone cà khịa</label>
+          <select id="roastMode" onchange="triggerRoast('start')">
+            <option value="savage" selected>Cà khịa gắt 🔥</option>
+            <option value="friendly">Vui vẻ 😄</option>
+            <option value="coach">Phân tích 🧠</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mode-box" id="customTimePanel" style="display:none">
+        <div class="grid-3" style="margin-bottom:0">
+          <div>
+            <label for="customMin">Số phút</label>
+            <input type="number" id="customMin" min="1" max="120" value="10" onchange="newGame()">
+          </div>
+          <div>
+            <label for="customSec">Giây cộng/chờ</label>
+            <input type="number" id="customSec" min="0" max="60" value="3" onchange="newGame()">
+          </div>
+          <div>
+            <label for="customKind">Loại đồng hồ</label>
+            <select id="customKind" onchange="newGame()">
+              <option value="bonus" selected>Bonus (+giây)</option>
+              <option value="delay">Delay (chờ giây)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="mode-box" id="modeOptions">
+        <div id="panel-standard">
+          <strong>Chế độ Tiêu chuẩn:</strong> Đấu trực tiếp với Stockfish 1–18, thanh đánh giá thế trận thời gian thực, gợi ý biến đi và đánh giá chất lượng từng nước.
+        </div>
+
+        <div id="panel-chess960" style="display:none">
+          <div class="grid-2" style="margin-bottom:6px">
+            <div>
+              <label for="pos960Input">Mã vị trí Chess960 (0–959)</label>
+              <input type="number" id="pos960Input" min="0" max="959" value="518" onchange="setChess960Id(this.value)">
+            </div>
+            <div style="display:flex;align-items:flex-end">
+              <button type="button" class="sec" onclick="randomChess960()">🎲 Random vị trí (0–959)</button>
+            </div>
+          </div>
+          <div id="pos960Text" style="color:var(--mut);font-size:11.5px">Vị trí #518: R N B Q K B N R</div>
+        </div>
+
+        <div id="panel-handicap" style="display:none">
+          <div class="grid-2" style="margin-bottom:0">
+            <div>
+              <label for="hcSide">Bên bị chấp quân</label>
+              <select id="hcSide" onchange="newGame()">
+                <option value="w" selected>Trắng (Bạn)</option>
+                <option value="b">Đen (Stockfish)</option>
+              </select>
+            </div>
+            <div>
+              <label for="hcPiece">Loại quân chấp</label>
+              <select id="hcPiece" onchange="newGame()">
+                <option value="q" selected>Chấp Hậu (Q)</option>
+                <option value="r">Chấp Xe (R)</option>
+                <option value="b">Chấp Tượng (B)</option>
+                <option value="n">Chấp Mã (N)</option>
+                <option value="p">Chấp Tốt cột f (P)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="panel-four" style="display:none">
+          <strong>Cờ 4 phe (14×14):</strong> 4 phe <em>Đỏ · Xanh lá · Đen · Trắng</em> luân phiên di chuyển, bắt quân và tấn công Vua đối thủ.
+        </div>
+
+        <div id="panel-team" style="display:none">
+          <strong>Đồng đội 2v2:</strong> Bạn cùng đồng đội phối hợp 2 nước/lượt chống lại bộ đôi Stockfish.
+        </div>
+      </div>
+
+      <div class="grid-4">
+        <button type="button" onclick="newGame()">Ván mới</button>
+        <button type="button" class="sec" onclick="undoMove()">Đi lại</button>
+        <button type="button" class="sec" onclick="flipBoardView()">Xoay bàn</button>
+        <button type="button" class="bad" onclick="resignGame()">Đầu hàng</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="player-bar">
+        <div class="player-meta">
+          <div class="player-name" id="topName">🤖 Stockfish (Đen)</div>
+          <div class="player-sub" id="topSub">Đối thủ máy</div>
+          <div class="captured-row" id="topCaptured"></div>
+        </div>
+        <div class="clock-wrap">
+          <div class="clock-box" id="topClock">10:00</div>
+          <div class="clock-
