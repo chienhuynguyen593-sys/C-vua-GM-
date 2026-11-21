@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bàn Cờ Vua Mới</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;padding:16px;background:#0f172a;color:#f8fafc;
+  font-family:system-ui,-apple-system,sans-serif;display:flex;justify-content:center;
+}
+.box{width:100%;max-width:460px}
+.top{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  margin-bottom:10px;background:#1e293b;padding:10px 12px;border-radius:10px;
+}
+.btns{display:flex;gap:8px}
+button.ctrl{
+  padding:7px 12px;border-radius:8px;border:1px solid #475569;
+  background:#334155;color:#fff;font-weight:700;cursor:pointer;
+}
+.grid{
+  width:100%;aspect-ratio:1/1;display:grid;
+  grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);
+  border:3px solid #334155;border-radius:8px;overflow:hidden;
+}
+.cell{
+  border:0;padding:0;margin:0;position:relative;
+  display:grid;place-items:center;font-size:clamp(22px,6.4vw,44px);cursor:pointer;
+}
+.light{background:#eeeed2}
+.dark{background:#769656}
+.picked{background:#f6f669!important}
+.move-dot::after{
+  content:"";width:28%;height:28%;border-radius:50%;
+  background:rgba(20,20,20,.38);
+}
+.w-piece{color:#ffffff;text-shadow:0 0 2px #000,0 1px 2px #000}
+.b-piece{color:#111827;text-shadow:0 0 1px #fff}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="top">
+    <strong id="turnLabel">Lượt: Trắng</strong>
+    <div class="btns">
+      <button type="button" class="ctrl" id="btnFlip">Xoay bàn</button>
+      <button type="button" class="ctrl" id="btnNew">Ván mới</button>
+    </div>
+  </div>
+  <div class="grid" id="chessGrid"></div>
+</div>
+
+<script>
+const PIECE_ICON = {
+  wK:"♔", wQ:"♕", wR:"♖", wB:"♗", wN:"♘", wP:"♙",
+  bK:"♚", bQ:"♛", bR:"♜", bB:"♝", bN:"♞", bP:"♟"
+};
+
+let map, sideTurn, selected, validMoves, rotated;
+
+function resetBoard(){
+  map = Array.from({length:8}, ()=>Array(8).fill(null));
+  const order = ["r","n","b","q","k","b","n","r"];
+  for(let col=0; col<8; col++){
+    map[0][col] = {color:"b", kind:order[col]};
+    map[1][col] = {color:"b", kind:"p"};
+    map[6][col] = {color:"w", kind:"p"};
+    map[7][col] = {color:"w", kind:order[col]};
+  }
+  sideTurn = "w";
+  selected = null;
+  validMoves = [];
+  rotated = false;
+  paint();
+}
+
+function getSteps(r, c){
+  const piece = map[r][c];
+  if(!piece) return [];
+  const out = [];
+  const enemy = piece.color === "w" ? "b" : "w";
+
+  const tryStep = (nr, nc, canTake=true)=>{
+    if(nr<0 || nr>7 || nc<0 || nc>7) return false;
+    const target = map[nr][nc];
+    if(!target){
+      out.push([nr, nc]);
+      return true;
+    }
+    if(canTake && target.color === enemy){
+      out.push([nr, nc]);
+    }
+    return false;
+  };
+
+  if(piece.kind === "p"){
+    const dir = piece.color === "w" ? -1 : 1;
+    const homeRow = piece.color === "w" ? 6 : 1;
+    if(map[r+dir] && map[r+dir][c] === null){
+      out.push([r+dir, c]);
+      if(r === homeRow && map[r+dir*2] && map[r+dir*2][c] === null){
+        out.push([r+dir*2, c]);
+      }
+    }
+    for(const dc of [-1, 1]){
+      const t = map[r+dir] && map[r+dir][c+dc];
+      if(t && t.color === enemy) out.push([r+dir, c+dc]);
+    }
+  } else if(piece.kind === "n"){
+    for(const [dr,dc] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]){
+      tryStep(r+dr, c+dc);
+    }
+  } else if(piece.kind === "k"){
+    for(let dr=-1; dr<=1; dr++){
+      for(let dc=-1; dc<=1; dc++){
+        if(dr || dc) tryStep(r+dr, c+dc);
+      }
+    }
+  } else {
+    const rays = piece.kind === "b"
+      ? [[-1,-1],[-1,1],[1,-1],[1,1]]
+      : piece.kind === "r"
+      ? [[-1,0],[1,0],[0,-1],[0,1]]
+      : [[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]];
+    for(const [dr,dc] of rays){
+      let nr = r+dr, nc = c+dc;
+      while(tryStep(nr, nc)){ nr += dr; nc += dc; }
+    }
+  }
+  return out;
+}
+
+function moveTo(fr, fc, tr, tc){
+  const moving = map[fr][fc];
+  if(!moving) return;
+  const promote = moving.kind === "p" && (tr === 0 || tr === 7);
+  map[tr][tc] = {color:moving.color, kind:promote ? "q" : moving.kind};
+  map[fr][fc] = null;
+  selected = null;
+  validMoves = [];
+  sideTurn = sideTurn === "w" ? "b" : "w";
+  paint();
+}
+
+function paint(){
+  const grid = document.getElementById("chessGrid");
+  grid.innerHTML = "";
+  const axis = rotated ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7];
+
+  for(const r of axis){
+    for(const c of axis){
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cell " + (((r+c)%2===0) ? "light" : "dark");
+      if(selected && selected[0]===r && selected[1]===c){
+        btn.classList.add("picked");
+      }
+      if(validMoves.some(([x,y])=>x===r && y===c)){
+        btn.classList.add("move-dot");
+      }
+      const p = map[r][c];
+      if(p){
+        const span = document.createElement("span");
+        span.className = p.color === "w" ? "w-piece" : "b-piece";
+        span.textContent = PIECE_ICON[p.color + p.kind.toUpperCase()];
+        btn.appendChild(span);
+      }
+      btn.onclick = ()=>{
+        if(selected && validMoves.some(([x,y])=>x===r && y===c)){
+          moveTo(selected[0], selected[1], r, c);
+          return;
+        }
+        if(p && p.color === sideTurn){
+          selected = [r, c];
+          validMoves = getSteps(r, c);
+        } else {
+          selected = null;
+          validMoves = [];
+        }
+        paint();
+      };
+      grid.appendChild(btn);
+    }
+  }
+  document.getElementById("turnLabel").textContent = "Lượt: " + (sideTurn === "w" ? "Trắng" : "Đen");
+}
+
+document.getElementById("btnFlip").onclick = ()=>{ rotated = !rotated; paint(); };
+document.getElementById("btnNew").onclick = resetBoard;
+resetBoard();
+</script>
+</body>
+</html>
