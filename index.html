@@ -888,3 +888,593 @@ function analyzePosition(depth) {
     if (!isEngineReady || !stockfish || game.game_over()) return;
     stockfish.postMessage('stop');
     stockfish.postMessage(`position fen ${game.fen
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Cờ Vua Stockfish 1 - 18 · Đa Chế Độ Full</title>
+<link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+<style>
+  :root {
+    --bg: #121210;
+    --panel: #1f1e1b;
+    --panel-2: #2a2824;
+    --line: #3b3832;
+    --txt: #f3f4f6;
+    --mut: #a3a39e;
+    --acc: #76b82a;
+    --acc-dark: #4f7e1a;
+    --warn: #f59e0b;
+    --bad: #ef4444;
+    --info: #38bdf8;
+  }
+  * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body {
+    margin: 0;
+    padding: 12px;
+    background: var(--bg);
+    color: var(--txt);
+    display: flex;
+    justify-content: center;
+  }
+  .app {
+    width: 100%;
+    max-width: 980px;
+    display: grid;
+    grid-template-columns: minmax(300px, 500px) 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .card:last-child { margin-bottom: 0; }
+  h1, h2, h3 { margin: 0 0 8px; }
+  h1 { font-size: 19px; text-align: center; }
+  h2 { font-size: 14px; color: #fff; }
+  h3 { font-size: 13px; color: #e5e7eb; }
+
+  /* Thanh chọn chế độ ở đầu */
+  .mode-bar {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .mode-btn {
+    background: var(--panel-2);
+    color: var(--txt);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    line-height: 1.25;
+  }
+  .mode-btn.active {
+    background: var(--acc);
+    color: #0e1904;
+    border-color: var(--acc);
+  }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+
+  label { display: block; font-size: 11px; color: var(--mut); margin-bottom: 3px; }
+  select, input[type="number"], button {
+    width: 100%;
+    background: var(--panel-2);
+    color: var(--txt);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 7px 8px;
+    font-size: 12.5px;
+  }
+  button {
+    background: var(--acc);
+    color: #0d1803;
+    border: none;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  button.sec { background: var(--panel-2); color: var(--txt); border: 1px solid var(--line); }
+  button.warn { background: #78350f; color: #fef3c7; border: 1px solid #b45309; }
+  button.bad { background: #7f1d1d; color: #fee2e2; border: 1px solid #b91c1c; }
+  button:active { opacity: 0.85; }
+
+  .extra-box {
+    background: #171614;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    padding: 8px;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+
+  /* Đồng hồ & người chơi */
+  .player-strip {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #171614;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 7px 10px;
+    margin-bottom: 6px;
+  }
+  .clock-box {
+    font-family: monospace;
+    font-size: 17px;
+    font-weight: 800;
+    background: #0d0d0c;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 4px 9px;
+    min-width: 78px;
+    text-align: center;
+  }
+  .clock-box.active { border-color: var(--acc); color: #a3e635; }
+  .clock-sub { font-size: 10.5px; color: var(--info); font-family: monospace; text-align: right; margin-top: 2px; }
+
+  /* Cà khịa */
+  .taunt {
+    background: #192214;
+    border-left: 3px solid var(--acc);
+    border-radius: 7px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    color: #ecfccb;
+    margin-bottom: 8px;
+    line-height: 1.35;
+  }
+
+  /* Thanh đánh giá */
+  .eval-wrap {
+    width: 100%;
+    height: 20px;
+    background: #2b2a27;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 8px;
+  }
+  .eval-fill {
+    height: 100%;
+    width: 50%;
+    background: #f3f4f6;
+    transition: width 0.35s ease;
+  }
+  .eval-txt {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    color: #ff5500;
+    text-shadow: 0 0 3px #000;
+  }
+
+  /* Bàn cờ chuẩn */
+  #myBoard { width: 100%; touch-action: none; margin-bottom: 8px; }
+
+  /* Bàn cờ 4 phe */
+  .four-board {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    display: grid;
+    grid-template-columns: repeat(14, 1fr);
+    grid-template-rows: repeat(14, 1fr);
+    border: 2px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 8px;
+    background: #141412;
+  }
+  .sq4 {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    place-items: center;
+    font-size: clamp(12px, 3.1vw, 24px);
+    line-height: 1;
+    cursor: pointer;
+    position: relative;
+  }
+  .sq4.void { background: #141412; cursor: default; }
+  .sq4.l { background: #ede7d6; }
+  .sq4.d { background: #7b9a5b; }
+  .sq4.sel { outline: 2px solid #facc15; outline-offset: -2px; background: #fde047 !important; }
+  .sq4.hint::after {
+    content: "";
+    width: 30%;
+    height: 30%;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.42);
+  }
+  .p-w { color: #ffffff; text-shadow: 0 0 2px #000, 0 1px 2px #000; }
+  .p-b { color: #111827; text-shadow: 0 0 1px #fff; }
+  .p-r { color: #ef4444; text-shadow: 0 0 2px #000; }
+  .p-g { color: #22c55e; text-shadow: 0 0 2px #000; }
+
+  .status-line {
+    font-size: 12.5px;
+    font-weight: 700;
+    text-align: center;
+    color: #e5e7eb;
+    margin-bottom: 6px;
+  }
+
+  /* Phân tích & biên bản */
+  .stat { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 5px; }
+  .val { color: #9be047; font-weight: 700; font-family: monospace; }
+  .pv {
+    background: #141412;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 7px 8px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #e5e7eb;
+    word-break: break-word;
+    margin-top: 4px;
+  }
+  .move-log {
+    background: #141412;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 8px;
+    max-height: 170px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .log-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 3px 0;
+    border-bottom: 1px solid #22211e;
+  }
+  .log-row:last-child { border-bottom: none; }
+  .tag-good { color: #4ade80; }
+  .tag-ok { color: #facc15; }
+  .tag-bad { color: #f87171; }
+
+  @media (max-width: 820px) {
+    .app { grid-template-columns: 1fr; max-width: 520px; }
+    .mode-bar { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- CỘT TRÁI: CHẾ ĐỘ, ĐỒNG HỒ, CÀ KHỊA & BÀN CỜ -->
+  <div>
+    <div class="card">
+      <h1>♟️ Cờ Vua Stockfish 1 - 18 · Đa Chế Độ</h1>
+
+      <label>Chọn chế độ chơi ngay khi vào:</label>
+      <div class="mode-bar" id="modeBar">
+        <button type="button" class="mode-btn active" data-mode="standard" onclick="selectMode('standard')">Tiêu chuẩn<br><small>SF 1–18</small></button>
+        <button type="button" class="mode-btn" data-mode="chess960" onclick="selectMode('chess960')">Chess960<br><small>960 thế cờ</small></button>
+        <button type="button" class="mode-btn" data-mode="handicap" onclick="selectMode('handicap')">Chấp quân<br><small>Tùy chọn</small></button>
+        <button type="button" class="mode-btn" data-mode="four" onclick="selectMode('four')">Cờ 4 phe<br><small>4 người/máy</small></button>
+        <button type="button" class="mode-btn" data-mode="team" onclick="selectMode('team')">Đồng đội<br><small>2v2 phối hợp</small></button>
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <label for="sfVersion">Cấp độ Stockfish (1 - 18)</label>
+          <select id="sfVersion" onchange="updateEngineLevel()"></select>
+        </div>
+        <div>
+          <label for="playerSide">Phe / Vị trí của bạn</label>
+          <select id="playerSide" onchange="startNewMatch()">
+            <option value="w" selected>Trắng (Đi trước)</option>
+            <option value="b">Đen (Máy đi trước)</option>
+            <option value="r">Ngẫu nhiên</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <label for="timePreset">Chế độ thời gian</label>
+          <select id="timePreset" onchange="onTimePresetChange()">
+            <option value="300|2|bonus">5+2 (Bonus 2s)</option>
+            <option value="180|2|bonus">3+2 (Bonus 2s)</option>
+            <option value="600|5|bonus" selected>10+5 (Bonus 5s)</option>
+            <option value="900|10|bonus">15+10 (Bonus 10s)</option>
+            <option value="300|3|delay">5 phút · Delay 3s</option>
+            <option value="600|5|delay">10 phút · Delay 5s</option>
+            <option value="custom|0|bonus">Tùy chỉnh phút / Bonus / Delay</option>
+          </select>
+        </div>
+        <div>
+          <label for="roastStyle">Phong cách cà khịa</label>
+          <select id="roastStyle" onchange="sayTaunt('start')">
+            <option value="savage" selected>Cà khịa gắt 🔥</option>
+            <option value="fun">Vui vẻ 😄</option>
+            <option value="pro">Nghiêm túc 🧠</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="extra-box" id="customTimeBox" style="display:none">
+        <div class="grid-3" style="margin-bottom:0">
+          <div>
+            <label for="cMin">Phút</label>
+            <input id="cMin" type="number" min="1" max="120" value="10" onchange="startNewMatch()">
+          </div>
+          <div>
+            <label for="cInc">Giây (+)</label>
+            <input id="cInc" type="number" min="0" max="60" value="3" onchange="startNewMatch()">
+          </div>
+          <div>
+            <label for="cType">Kiểu</label>
+            <select id="cType" onchange="startNewMatch()">
+              <option value="bonus" selected>Bonus (+s)</option>
+              <option value="delay">Delay (chờ s)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tùy chọn riêng cho từng chế độ -->
+      <div class="extra-box" id="modeOptionBox">
+        <div id="opt-standard">Chế độ Tiêu chuẩn: Đấu trực tiếp với Stockfish 1–18, phân tích thế cờ & đánh giá từng nước.</div>
+        <div id="opt-chess960" style="display:none">
+          <div class="grid-2" style="margin-bottom:6px">
+            <div>
+              <label for="c960Id">Mã vị trí Chess960 (0 - 959)</label>
+              <input id="c960Id" type="number" min="0" max="959" value="518">
+            </div>
+            <div style="display:flex;align-items:flex-end">
+              <button type="button" class="sec" onclick="random960()">🎲 Random vị trí #</button>
+            </div>
+          </div>
+          <div id="c960Desc" style="color:var(--mut)">Vị trí #518 (Cờ tiêu chuẩn)</div>
+        </div>
+        <div id="opt-handicap" style="display:none">
+          <div class="grid-2" style="margin-bottom:0">
+            <div>
+              <label for="hcTarget">Bên bị chấp quân</label>
+              <select id="hcTarget" onchange="startNewMatch()">
+                <option value="w" selected>Phe Trắng (Bạn)</option>
+                <option value="b">Phe Đen (Stockfish)</option>
+              </select>
+            </div>
+            <div>
+              <label for="hcPiece">Quân chấp</label>
+              <select id="hcPiece" onchange="startNewMatch()">
+                <option value="q" selected>Chấp Hậu (Q)</option>
+                <option value="r">Chấp Xe (R)</option>
+                <option value="b">Chấp Tượng (B)</option>
+                <option value="n">Chấp Mã (N)</option>
+                <option value="p">Chấp Tốt f (P)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div id="opt-four" style="display:none">
+          Cờ 4 phe (Đỏ · Xanh lá · Đen · Trắng): 4 bên đánh xoay vòng trên bàn 14x14, ăn quân và chiếu Vua liên hoàn.
+        </div>
+        <div id="opt-team" style="display:none">
+          Chế độ Đồng đội (2v2): Bạn + Đồng đội cùng phe phối hợp chống lại bộ đôi Stockfish.
+        </div>
+      </div>
+
+      <div class="grid-4" style="margin-bottom:0">
+        <button type="button" onclick="startNewMatch()">Ván mới</button>
+        <button type="button" class="sec" onclick="undoTurn()">Đi lại</button>
+        <button type="button" class="sec" onclick="flipView()">Xoay bàn</button>
+        <button type="button" class="bad" onclick="resignMatch()">Đầu hàng</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="player-strip">
+        <div>
+          <strong id="topPlayerName">🤖 Stockfish (Đen)</strong>
+          <div id="topPlayerSub" style="font-size:11px;color:var(--mut)">Đối thủ</div>
+        </div>
+        <div>
+          <div class="clock-box" id="topClock">10:00</div>
+          <div class="clock-sub" id="topClockSub">+5s bonus</div>
+        </div>
+      </div>
+
+      <div class="taunt" id="tauntBox">Chọn chế độ xong là chiến thôi bro!</div>
+
+      <div class="eval-wrap" id="evalWrap">
+        <div class="eval-fill" id="evalFill"></div>
+        <div class="eval-txt" id="evalTxt">0.00 (Cân bằng)</div>
+      </div>
+
+      <div id="board2dWrap">
+        <div id="myBoard"></div>
+      </div>
+      <div id="board4dWrap" style="display:none">
+        <div class="four-board" id="board4d"></div>
+      </div>
+
+      <div class="player-strip" style="margin-bottom:4px">
+        <div>
+          <strong id="botPlayerName">👑 Bạn (Trắng)</strong>
+          <div id="botPlayerSub" style="font-size:11px;color:var(--mut)">Người chơi</div>
+        </div>
+        <div>
+          <div class="clock-box" id="botClock">10:00</div>
+          <div class="clock-sub" id="botClockSub">+5s bonus</div>
+        </div>
+      </div>
+
+      <div class="status-line" id="statusLine">Lượt của bạn (Trắng)</div>
+    </div>
+  </div>
+
+  <!-- CỘT PHẢI: ĐÁNH GIÁ THẾ CỜ & BIÊN BẢN TRẬN ĐẤU -->
+  <div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h2 style="margin:0">📊 Đánh Giá Thế Cờ & Nước Đi</h2>
+        <span id="sfState" style="font-size:12px;color:#9be047;font-weight:700">Đang tải AI...</span>
+      </div>
+
+      <div class="stat">
+        <span>Điểm ưu thế:</span>
+        <span class="val" id="evalScore">0.00</span>
+      </div>
+      <div class="stat">
+        <span>Nước đi tốt nhất:</span>
+        <span class="val" id="bestMoveVal">-</span>
+      </div>
+      <div class="stat">
+        <span>Độ sâu tính toán:</span>
+        <span class="val" id="depthVal">0</span>
+      </div>
+      <div class="stat">
+        <span>Đánh giá nước vừa đi:</span>
+        <span class="val" id="moveQualityVal">Chưa có</span>
+      </div>
+      <div style="font-size:12px;color:var(--mut);margin-top:4px">Biến đi dự kiến (PV):</div>
+      <div class="pv" id="pvLine">Đi một nước để AI phân tích biến tiếp theo...</div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:6px;flex-wrap:wrap">
+        <h2 style="margin:0">📜 Biên Bản Trận Đấu</h2>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="sec" style="width:auto;padding:4px 9px;font-size:11.5px" onclick="copyLog()">📋 Copy</button>
+          <button type="button" class="sec" id="soundToggleBtn" style="width:auto;padding:4px 9px;font-size:11.5px" onclick="toggleSound()">🔊 Bật tiếng</button>
+        </div>
+      </div>
+      <div class="move-log" id="moveLog">
+        <div style="color:var(--mut)">Chưa có nước đi nào được ghi nhận.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+
+<script>
+const ELO_LIST = [
+  800, 950, 1100, 1250, 1400, 1550, 1700, 1850, 2000,
+  2150, 2300, 2450, 2600, 2750, 2900, 3050, 3200, 3400
+];
+const PIECE_SCORE = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
+const GLYPH_4P = {
+  wK: "♔", wQ: "♕", wR: "♖", wB: "♗", wN: "♘", wP: "♙",
+  bK: "♚", bQ: "♛", bR: "♜", bB: "♝", bN: "♞", bP: "♟",
+  rK: "♔", rQ: "♕", rR: "♖", rB: "♗", rN: "♘", rP: "♙",
+  gK: "♔", gQ: "♕", gR: "♖", gB: "♗", gN: "♘", gP: "♙"
+};
+const ROAST_BANK = {
+  savage: {
+    start: ["Lên bàn rồi đó bro, xem trụ được bao lâu hay lại toang sớm!", "Mở màn đi, đừng để bay quân ngay từ khai cuộc nhé."],
+    aiFirst: ["Mình cầm Trắng đi trước luôn cho nóng nha bro!"],
+    capAi: ["Cảm ơn quân cờ miễn phí nha, đỡ tốn công tính!", "Mình xin nhẹ quân này cho gọn bàn cờ."],
+    chkAi: ["Chiếu! Vua của bro bắt đầu đổ mồ hôi hột rồi kìa."],
+    chkYou: ["À, cũng biết chiếu cơ à? Chưa xi nhê đâu bro."],
+    blunder: ["Ơ kìa, nước này hơi bị hớ nặng rồi nha bro!"],
+    norm: ["Nước đi cũng tạm đấy, xem tiếp theo thế nào.", "Cứ từ từ, mình vẫn đang theo sát từng nước."],
+    winAi: ["Hết phim rồi! Nghỉ tay làm miếng gì rồi làm ván khác nhé 😎"],
+    winYou: ["Nay bro đánh gắt thật, chịu thua ván này!"]
+  },
+  fun: {
+    start: ["Vào ván chiến thôi bro ơi!"],
+    aiFirst: ["Mình đi trước nha bro, vào nhịp nào!"],
+    capAi: ["Ối, mình xin quân này nha!"],
+    chkAi: ["Chiếu tướng nè bro!"],
+    chkYou: ["Pha chiếu hay đấy!"],
+    blunder: ["Suýt nữa thì hớ nhẹ, tiếp tục nào!"],
+    norm: ["Đang vào guồng nè bro!"],
+    winAi: ["Mình thắng rồi, làm ván mới không bro?"],
+    winYou: ["Bro đánh đỉnh quá!"]
+  },
+  pro: {
+    start: ["Bắt đầu ván đấu."],
+    aiFirst: ["Bên Trắng đi trước."],
+    capAi: ["Đã ăn quân."],
+    chkAi: ["Chiếu Vua."],
+    chkYou: ["Bên Trắng chiếu Vua."],
+    blunder: ["Nước đi làm giảm đáng kể đánh giá thế cờ."],
+    norm: ["Đang đánh giá thế cờ tiếp theo."],
+    winAi: ["Kết thúc ván đấu. Thắng thuộc về bên máy."],
+    winYou: ["Kết thúc ván đấu. Bạn thắng."]
+  }
+};
+
+// Nạp danh sách Stockfish 1 - 18
+const sfSelect = document.getElementById("sfVersion");
+for (let i = 1; i <= 18; i++) {
+  const op = document.createElement("option");
+  op.value = i;
+  op.text = `Stockfish ${i} (~${ELO_LIST[i - 1]} Elo)`;
+  if (i === 18) op.selected = true;
+  sfSelect.appendChild(op);
+}
+
+let mode = "standard"; // standard | chess960 | handicap | four | team
+let playerSide = "w";
+let game = new Chess();
+let board2d = null;
+let stockfish = null;
+let engineReady = false;
+let currentDepth = 12;
+let matchOver = false;
+let soundEnabled = true;
+
+// Hệ thống thời gian (Base + Bonus hoặc Delay)
+let timeConfig = { base: 600, step: 5, kind: "bonus" };
+let clocks = { w: 600, b: 600, r: 600, g: 600 };
+let activeDelay = { w: 0, b: 0, r: 0, g: 0 };
+let clockInterval = null;
+let aiTimer = null;
+
+// Phân tích & biên bản
+let lastScoreCp = 0;
+let moveEntries = [];
+
+// Trạng thái bàn cờ 4 phe (14x14)
+let board4 = null;
+let turn4 = "r";
+let sel4 = null;
+let hints4 = [];
+let flipped4 = false;
+
+function byId(id) { return document.getElementById(id); }
+
+function sayTaunt(key) {
+  const style = byId("roastStyle").value;
+  const arr = (ROAST_BANK[style] && ROAST_BANK[style][key]) || ROAST_BANK.savage.norm;
+  byId("tauntBox").innerText = arr[Math.floor(Math.random() * arr.length)];
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  byId("soundToggleBtn").innerText = soundEnabled ? "🔊 Bật tiếng" : "🔇 Tắt tiếng";
+}
+
+function playTone(freq, ms) {
+  if (!soundEnabled) return;
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOsc
